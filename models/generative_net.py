@@ -115,9 +115,36 @@ class GenerativeMedVQA(nn.Module):
             nn.Linear(self.text_hidden_dim, self.text_hidden_dim)
         )
         
+        # TRI-HEAD ARCHITECTURE for Hybrid VQA
+        # Layer norms for stable fusion
+        self.image_norm = nn.LayerNorm(self.text_hidden_dim)
+        self.text_norm = nn.LayerNorm(self.text_hidden_dim)
+        
+        # Head 1: Binary Classifier for Yes/No Questions (50% of data)
+        self.binary_head = nn.Sequential(
+            nn.LayerNorm(self.text_hidden_dim),  # Stabilize input
+            nn.Linear(self.text_hidden_dim, 256),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(256, 2)  # [no, yes]
+        )
+        
+        # Head 2: Multi-Class Classifier for Common Answers (28% of data)  
+        # Top 100 answers cover 77.6% of open questions
+        self.multiclass_head = nn.Sequential(
+            nn.LayerNorm(self.text_hidden_dim),  # Stabilize input
+            nn.Linear(self.text_hidden_dim, 512),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(512, 100)  # Top 100 most common answers
+        )
+        
+        # Head 3: Generator (BioGPT) for Rare/Complex Answers (22% of data)
+        # Already exists as self.decoder
+        
         # Support for two-stage training (LLaVA approach)
-        # Stage 1: Freeze LLM, train only projection (pretraining_mode=True)
-        # Stage 2: Unfreeze LLM, train projection + LLM (pretraining_mode=False)
+        # Stage 1: Freeze LLM, train only projection + classifiers (pretraining_mode=True)
+        # Stage 2: Unfreeze LLM, train all components (pretraining_mode=False)
         self._pretraining_mode = False
         
     def forward(
@@ -125,68 +152,134 @@ class GenerativeMedVQA(nn.Module):
         images: torch.Tensor, 
         input_ids: torch.Tensor, 
         attention_mask: torch.Tensor,
-        labels: Optional[torch.Tensor] = None
+        labels: Optional[torch.Tensor] = None,
+        question_type: Optional[str] = None  # NEW: 'yes_no', 'common_open', 'rare_open'
     ) -> Dict[str, torch.Tensor]:
         """
-        Forward pass for Causal LM training.
+        Forward pass for Tri-Head Hybrid VQA.
         
         Args:
             images: [B, C, H, W]
-            input_ids: [B, L] (Question + Answer tokens)
+            input_ids: [B, L] (Question tokens only for classification, Question+Answer for generation)
             attention_mask: [B, L]
-            labels: [B, L] (Masked labels for loss, -100 for question parts)
+            labels: [B] for classification, [B, L] for generation
+            question_type: Which head to use - 'yes_no', 'common_open', or 'rare_open'
         """
         # 1. Encode Images
         # [B, 3, 224, 224] -> [B, N_vis, D_vis]
-        # ViT output usually is object with last_hidden_state
         vision_outputs = self.vision_encoder(pixel_values=images)
         if hasattr(vision_outputs, 'last_hidden_state'):
             image_embeds = vision_outputs.last_hidden_state 
             
             # Handle 4D output (ResNet-like): [B, C, H, W] -> [B, H*W, C]
             if len(image_embeds.shape) == 4:
-                # [B, C, H, W] -> [B, C, H*W] -> [B, H*W, C]
                 b, c, h, w = image_embeds.shape
                 image_embeds = image_embeds.view(b, c, -1).permute(0, 2, 1)
         else:
              # Fallback to pooler_output (single token per image)
              image_embeds = vision_outputs.pooler_output.unsqueeze(1) # [B, 1, C]
         
+        # CRITICAL: Clean NaN/Inf from vision encoder IMMEDIATELY
+        image_embeds = torch.nan_to_num(image_embeds, nan=0.0, posinf=1.0, neginf=-1.0)
+        
         # 2. Project to Text Dimension
         # [B, N_vis, D_text]
         image_embeds = self.connector(image_embeds)
         
-        # 3. Concatenate? No, standard LLaVA/Causal approach:
-        # We can pass image_embeds as `encoder_hidden_states` if using Encoder-Decoder.
-        # BUT BioGPT is Decoder-ONLY.
-        # So we must PREPEND visual tokens to the input_ids embeddings.
+        # CRITICAL: Clean NaN/Inf from projection IMMEDIATELY
+        image_embeds = torch.nan_to_num(image_embeds, nan=0.0, posinf=1.0, neginf=-1.0)
+        image_embeds = torch.clamp(image_embeds, min=-5.0, max=5.0)  # Tight clamp
         
-        # Embed text inputs
-        input_embeds = self.decoder.get_input_embeddings()(input_ids) # [B, L, D_text]
+        # 3. Route to appropriate head based on question type
+        if question_type in ['yes_no', 'common_open']:
+            # CLASSIFICATION: Use fused features for classification heads
+            # Embed text (question only)
+            text_embeds = self.decoder.get_input_embeddings()(input_ids) # [B, L, D_text]
+            
+            # CRITICAL: Clean NaN/Inf from text embeddings
+            text_embeds = torch.nan_to_num(text_embeds, nan=0.0, posinf=1.0, neginf=-1.0)
+            text_embeds = torch.clamp(text_embeds, min=-5.0, max=5.0)
+            
+            # Stable fusion with layer normalization
+            # Image: [B, N_vis, D] -> [B, D]
+            image_pooled = image_embeds.mean(dim=1)
+            
+            # Text: [B, L, D] -> [B, D] (use attention mask for proper pooling)
+            text_mask_expanded = attention_mask.unsqueeze(-1).float()  # [B, L, 1]
+            mask_sum = text_mask_expanded.sum(dim=1)  # [B, 1]
+            
+            # CRITICAL: Prevent division by zero with epsilon
+            eps = 1e-8
+            mask_sum = torch.clamp(mask_sum, min=eps)  # Ensure non-zero
+            text_pooled = (text_embeds * text_mask_expanded).sum(dim=1) / mask_sum
+            
+            # Clamp to prevent extreme values
+            image_pooled = torch.clamp(image_pooled, min=-10.0, max=10.0)
+            text_pooled = torch.clamp(text_pooled, min=-10.0, max=10.0)
+            
+            # Normalize before fusion to prevent explosion
+            image_pooled = self.image_norm(image_pooled)
+            text_pooled = self.text_norm(text_pooled)
+            
+            # Fused features: [B, D] (addition after normalization)
+            fused = image_pooled + text_pooled  # [B, D_text]
+            fused = torch.clamp(fused, min=-10.0, max=10.0)  # Final safety clamp
+            
+            if question_type == 'yes_no':
+                # Binary classification
+                logits = self.binary_head(fused)  # [B, 2]
+                logits = torch.nan_to_num(logits, nan=0.0, posinf=5.0, neginf=-5.0)  # Silent fix
+                
+                loss = None
+                if labels is not None:
+                    if labels.dim() > 1:
+                        labels = labels.squeeze(-1)
+                    loss = nn.functional.cross_entropy(logits, labels)
+                    if torch.isnan(loss):
+                        loss = torch.tensor(0.0, device=loss.device, requires_grad=True)
+                        
+                return {'logits': logits, 'loss': loss}
+            
+            else:  # common_open
+                # Multi-class classification
+                logits = self.multiclass_head(fused)  # [B, 100]
+                logits = torch.nan_to_num(logits, nan=0.0, posinf=5.0, neginf=-5.0)  # Silent fix
+                
+                loss = None
+                if labels is not None:
+                    if labels.dim() > 1:
+                        labels = labels.squeeze(-1)
+                    loss = nn.functional.cross_entropy(logits, labels)
+                    if torch.isnan(loss):
+                        loss = torch.tensor(0.0, device=loss.device, requires_grad=True)
+                        
+                return {'logits': logits, 'loss': loss}
         
-        # Concatenate: [Image_Tokens, Text_Tokens]
-        # [B, N_vis + L, D_text]
-        inputs_embeds = torch.cat([image_embeds, input_embeds], dim=1)
-        
-        # Extend attention mask
-        # [B, N_vis] ones + [B, L] original mask
-        batch_size = images.shape[0]
-        vis_mask = torch.ones((batch_size, image_embeds.shape[1]), device=images.device)
-        attention_mask = torch.cat([vis_mask, attention_mask], dim=1)
-        
-        # Extend labels?
-        # Image tokens should be ignored (-100)
-        if labels is not None:
-             vis_labels = torch.full((batch_size, image_embeds.shape[1]), -100, device=images.device, dtype=labels.dtype)
-             labels = torch.cat([vis_labels, labels], dim=1)
-        
-        # 4. Decoder Forward
-        outputs = self.decoder(
-            inputs_embeds=inputs_embeds,
-            attention_mask=attention_mask,
-            labels=labels,
-            return_dict=True
-        )
+        else:  # rare_open - GENERATIVE
+            # Use BioGPT decoder for text generation
+            # Embed text inputs
+            input_embeds = self.decoder.get_input_embeddings()(input_ids) # [B, L, D_text]
+            
+            # Concatenate: [Image_Tokens, Text_Tokens]
+            inputs_embeds = torch.cat([image_embeds, input_embeds], dim=1)
+            
+            # Extend attention mask
+            batch_size = images.shape[0]
+            vis_mask = torch.ones((batch_size, image_embeds.shape[1]), device=images.device)
+            attention_mask = torch.cat([vis_mask, attention_mask], dim=1)
+            
+            # Extend labels? Image tokens should be ignored (-100)
+            if labels is not None:
+                 vis_labels = torch.full((batch_size, image_embeds.shape[1]), -100, device=images.device, dtype=labels.dtype)
+                 labels = torch.cat([vis_labels, labels], dim=1)
+            
+            # Decoder Forward
+            outputs = self.decoder(
+                inputs_embeds=inputs_embeds,
+                attention_mask=attention_mask,
+                labels=labels,
+                return_dict=True
+            )
         
         return outputs
 

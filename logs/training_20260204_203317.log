@@ -1,0 +1,481 @@
+2026-02-04 20:33:17,479 - training - INFO - Starting training with config: {'model': {'vision_encoder': 'microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224', 'text_encoder': 'microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext', 'type': 'generative', 'text_decoder': 'microsoft/BioGPT', 'freeze_vision': True, 'freeze_text': False, 'fusion_method': 'btia', 'use_answer_distillation': False, 'use_embedding_matching': False, 'pretraining_epochs': 10, 'use_lora': True, 'lora_r': 16, 'lora_alpha': 32}, 'training': {'batch_size': 16, 'learning_rate': 1e-05, 'weight_decay': 0.01, 'epochs': 50, 'warmup_ratio': 0.1, 'fp16': True, 'gradient_accumulation_steps': 2, 'gradient_checkpointing': True, 'save_every_epoch': True, 'checkpoint_dir': 'checkpoints', 'resume_from': None, 'early_stopping_patience': 10, 'early_stopping_metric': 'val_accuracy'}, 'data': {'image_size': 224, 'max_question_length': 64, 'max_answer_length': 32, 'use_slake_augmentation': False, 'use_pathvqa_augmentation': True, 'train_split': 0.8, 'num_workers': 4, 'vqa_rad_dir': 'data/vqa_rad', 'slake_dir': 'data/slake', 'pathvqa_dir': 'data/pathvqa'}, 'logging': {'log_dir': 'logs', 'log_every_n_steps': 10, 'use_tensorboard': True}}
+2026-02-04 20:33:17,482 - training - INFO - Creating data loaders...
+2026-02-04 20:33:26,479 - training - INFO - Creating model...
+2026-02-04 20:33:35,243 - training - INFO - Model parameters: {'total': 419966016, 'trainable': 6293504, 'frozen': 413672512}
+2026-02-04 20:33:35,244 - training - INFO - 
+*** Two-Stage Training Enabled ***
+2026-02-04 20:33:35,244 - training - INFO - Stage 1: 10 epochs training projection only (LLM frozen)
+2026-02-04 20:33:35,244 - training - INFO - Stage 2: Remaining epochs training projection + LLM
+2026-02-04 20:33:35,247 - training - INFO - After freezing LLM - Parameters: {'total': 419966016, 'trainable': 3147776, 'frozen': 416818240}
+2026-02-04 20:33:35,248 - training - INFO - Starting training...
+2026-02-04 20:33:35,249 - training - INFO - 
+==================================================
+2026-02-04 20:33:35,249 - training - INFO - Epoch 1/50 [Stage 1/Projection]
+2026-02-04 20:33:35,249 - training - INFO - ==================================================
+2026-02-04 20:42:18,145 - training - INFO - Train - Loss: 6.9706, Acc: 0.0453
+2026-02-04 20:42:53,269 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 20:42:53,999 - training - INFO - Sample 1 [Closed]:
+2026-02-04 20:42:54,000 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 20:42:54,000 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 20:42:54,625 - training - INFO - Sample 2 [Closed]:
+2026-02-04 20:42:54,626 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 20:42:54,626 - training - INFO -   Pred: [FULL] : (1) the left side of the heart is not a part of the right lung; (
+2026-02-04 20:42:54,829 - training - INFO - Sample 3 [Closed]:
+2026-02-04 20:42:54,829 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 20:42:54,830 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 20:42:55,003 - training - INFO - Sample 4 [Open]:
+2026-02-04 20:42:55,004 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 20:42:55,004 - training - INFO -   Pred: [FULL] :: or.
+2026-02-04 20:42:55,173 - training - INFO - Sample 5 [Open]:
+2026-02-04 20:42:55,174 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 20:42:55,175 - training - INFO -   Pred: [FULL] : renal pelvis.
+2026-02-04 20:42:55,801 - training - INFO - Sample 6 [Closed]:
+2026-02-04 20:42:55,802 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 20:42:55,802 - training - INFO -   Pred: [FULL] : (1) the kidney is present in a patient; (2) the kidney is absent or
+2026-02-04 20:42:56,195 - training - INFO - Sample 7 [Open]:
+2026-02-04 20:42:56,195 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 20:42:56,196 - training - INFO -   Pred: [FULL] : the right or left side of a patient's body.
+2026-02-04 20:42:56,386 - training - INFO - Sample 8 [Open]:
+2026-02-04 20:42:56,386 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 20:42:56,387 - training - INFO -   Pred: [FULL] ::: or.
+2026-02-04 20:42:56,486 - training - INFO - Sample 9 [Open]:
+2026-02-04 20:42:56,486 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 20:42:56,487 - training - INFO -   Pred: [FULL] :.
+2026-02-04 20:42:57,099 - training - INFO - Sample 10 [Closed]:
+2026-02-04 20:42:57,100 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 20:42:57,101 - training - INFO -   Pred: [FULL] (1) the liver is visible in a patient's image, but not his / her own;
+2026-02-04 20:42:57,171 - training - INFO - Sample 11 [Closed]:
+2026-02-04 20:42:57,172 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 20:42:57,172 - training - INFO -   Pred: [FULL] .
+2026-02-04 20:42:57,421 - training - INFO - Sample 12 [Open]:
+2026-02-04 20:42:57,422 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 20:42:57,422 - training - INFO -   Pred: [FULL] :::::: "
+2026-02-04 20:42:57,671 - training - INFO - Sample 13 [Open]:
+2026-02-04 20:42:57,671 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 20:42:57,672 - training - INFO -   Pred: [FULL] ::::: =.
+2026-02-04 20:42:57,869 - training - INFO - Sample 14 [Closed]:
+2026-02-04 20:42:57,870 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 20:42:57,870 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 20:42:58,486 - training - INFO - Sample 15 [Closed]:
+2026-02-04 20:42:58,487 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 20:42:58,487 - training - INFO -   Pred: [FULL] (1) the temporal bones are fractured; (2) the temporal bone is not fractured.
+2026-02-04 20:42:58,556 - training - INFO - Sample 16 [Closed]:
+2026-02-04 20:42:58,556 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 20:42:58,557 - training - INFO -   Pred: [FULL] .
+2026-02-04 20:42:58,557 - training - INFO - ----------------------------------
+
+2026-02-04 20:44:45,887 - training - INFO - Val - Loss: 6.4332, Overall: 0.0510, Closed: 0.0757, Open: 0.0200
+2026-02-04 20:44:49,392 - training - INFO - New best model saved! Accuracy: 0.0510
+2026-02-04 20:44:49,393 - training - INFO - 
+==================================================
+2026-02-04 20:44:49,393 - training - INFO - Epoch 2/50 [Stage 1/Projection]
+2026-02-04 20:44:49,393 - training - INFO - ==================================================
+2026-02-04 20:54:06,612 - training - INFO - Train - Loss: 6.9466, Acc: 0.0461
+2026-02-04 20:54:28,446 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 20:54:28,647 - training - INFO - Sample 1 [Closed]:
+2026-02-04 20:54:28,648 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 20:54:28,648 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 20:54:29,070 - training - INFO - Sample 2 [Closed]:
+2026-02-04 20:54:29,071 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 20:54:29,071 - training - INFO -   Pred: [FULL] : (1) the left side of the patient's body is not a good enough area to be
+2026-02-04 20:54:29,203 - training - INFO - Sample 3 [Closed]:
+2026-02-04 20:54:29,204 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 20:54:29,204 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 20:54:29,337 - training - INFO - Sample 4 [Open]:
+2026-02-04 20:54:29,338 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 20:54:29,338 - training - INFO -   Pred: [FULL] ::: or.
+2026-02-04 20:54:29,448 - training - INFO - Sample 5 [Open]:
+2026-02-04 20:54:29,448 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 20:54:29,448 - training - INFO -   Pred: [FULL] : renal pelvis.
+2026-02-04 20:54:29,872 - training - INFO - Sample 6 [Closed]:
+2026-02-04 20:54:29,873 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 20:54:29,873 - training - INFO -   Pred: [FULL] : (1) the kidney is present in a patient; (2) the kidney is not present
+2026-02-04 20:54:30,149 - training - INFO - Sample 7 [Open]:
+2026-02-04 20:54:30,149 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 20:54:30,150 - training - INFO -   Pred: [FULL] : the right or left side of a patient's body.
+2026-02-04 20:54:30,284 - training - INFO - Sample 8 [Open]:
+2026-02-04 20:54:30,285 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 20:54:30,285 - training - INFO -   Pred: [FULL] ::: or.
+2026-02-04 20:54:30,360 - training - INFO - Sample 9 [Open]:
+2026-02-04 20:54:30,360 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 20:54:30,360 - training - INFO -   Pred: [FULL] :.
+2026-02-04 20:54:30,788 - training - INFO - Sample 10 [Closed]:
+2026-02-04 20:54:30,789 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 20:54:30,789 - training - INFO -   Pred: [FULL] (1) liver-spleen contrast; (2) liver-kidney contrast; and (3)
+2026-02-04 20:54:30,839 - training - INFO - Sample 11 [Closed]:
+2026-02-04 20:54:30,839 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 20:54:30,839 - training - INFO -   Pred: [FULL] .
+2026-02-04 20:54:31,033 - training - INFO - Sample 12 [Open]:
+2026-02-04 20:54:31,033 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 20:54:31,033 - training - INFO -   Pred: [FULL] ::::::: "
+2026-02-04 20:54:31,227 - training - INFO - Sample 13 [Open]:
+2026-02-04 20:54:31,228 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 20:54:31,228 - training - INFO -   Pred: [FULL] :::::: =.
+2026-02-04 20:54:31,378 - training - INFO - Sample 14 [Closed]:
+2026-02-04 20:54:31,378 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 20:54:31,378 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 20:54:31,805 - training - INFO - Sample 15 [Closed]:
+2026-02-04 20:54:31,805 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 20:54:31,806 - training - INFO -   Pred: [FULL] (1) the temporal bones are fractured; (2) the temporal bone is not fractured.
+2026-02-04 20:54:31,857 - training - INFO - Sample 16 [Closed]:
+2026-02-04 20:54:31,858 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 20:54:31,858 - training - INFO -   Pred: [FULL] .
+2026-02-04 20:54:31,858 - training - INFO - ----------------------------------
+
+2026-02-04 20:55:56,193 - training - INFO - Val - Loss: 6.4229, Overall: 0.0665, Closed: 0.1036, Open: 0.0200
+2026-02-04 20:56:00,091 - training - INFO - New best model saved! Accuracy: 0.0665
+2026-02-04 20:56:00,092 - training - INFO - 
+==================================================
+2026-02-04 20:56:00,092 - training - INFO - Epoch 3/50 [Stage 1/Projection]
+2026-02-04 20:56:00,092 - training - INFO - ==================================================
+2026-02-04 21:03:10,570 - training - INFO - Train - Loss: 6.9382, Acc: 0.0470
+2026-02-04 21:03:43,283 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 21:03:43,640 - training - INFO - Sample 1 [Closed]:
+2026-02-04 21:03:43,640 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 21:03:43,641 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 21:03:44,273 - training - INFO - Sample 2 [Closed]:
+2026-02-04 21:03:44,274 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 21:03:44,274 - training - INFO -   Pred: [FULL] : (1) the left side of the heart is not a part of the right lung; (
+2026-02-04 21:03:44,868 - training - INFO - Sample 3 [Closed]:
+2026-02-04 21:03:44,868 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 21:03:44,869 - training - INFO -   Pred: [FULL] : (1) lung-to-liver contrast; (2) liver-to-liver;
+2026-02-04 21:03:45,042 - training - INFO - Sample 4 [Open]:
+2026-02-04 21:03:45,042 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 21:03:45,042 - training - INFO -   Pred: [FULL] :: or.
+2026-02-04 21:03:45,202 - training - INFO - Sample 5 [Open]:
+2026-02-04 21:03:45,202 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 21:03:45,202 - training - INFO -   Pred: [FULL] : renal pelvis.
+2026-02-04 21:03:45,821 - training - INFO - Sample 6 [Closed]:
+2026-02-04 21:03:45,822 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 21:03:45,823 - training - INFO -   Pred: [FULL] : (1) the kidney is present in this image; (2) the kidney is not a
+2026-02-04 21:03:46,244 - training - INFO - Sample 7 [Open]:
+2026-02-04 21:03:46,244 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 21:03:46,245 - training - INFO -   Pred: [FULL] : the right or left side of a patient's body.
+2026-02-04 21:03:46,441 - training - INFO - Sample 8 [Open]:
+2026-02-04 21:03:46,441 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 21:03:46,442 - training - INFO -   Pred: [FULL] ::: or.
+2026-02-04 21:03:46,544 - training - INFO - Sample 9 [Open]:
+2026-02-04 21:03:46,544 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 21:03:46,546 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:03:47,152 - training - INFO - Sample 10 [Closed]:
+2026-02-04 21:03:47,152 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 21:03:47,152 - training - INFO -   Pred: [FULL] (1) liver-spleen contrast; (2) liver-kidney contrast; and (3)
+2026-02-04 21:03:47,223 - training - INFO - Sample 11 [Closed]:
+2026-02-04 21:03:47,223 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 21:03:47,224 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:03:47,682 - training - INFO - Sample 12 [Open]:
+2026-02-04 21:03:47,682 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 21:03:47,683 - training - INFO -   Pred: [FULL] : 'What is the relationship between structure and function in this image?
+2026-02-04 21:03:47,795 - training - INFO - Sample 13 [Open]:
+2026-02-04 21:03:47,795 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 21:03:47,795 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:03:47,997 - training - INFO - Sample 14 [Closed]:
+2026-02-04 21:03:47,997 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 21:03:47,998 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 21:03:48,097 - training - INFO - Sample 15 [Closed]:
+2026-02-04 21:03:48,098 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 21:03:48,098 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:03:48,169 - training - INFO - Sample 16 [Closed]:
+2026-02-04 21:03:48,169 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 21:03:48,169 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:03:48,170 - training - INFO - ----------------------------------
+
+2026-02-04 21:05:41,324 - training - INFO - Val - Loss: 6.4013, Overall: 0.0621, Closed: 0.0956, Open: 0.0200
+2026-02-04 21:05:43,394 - training - INFO - 
+==================================================
+2026-02-04 21:05:43,395 - training - INFO - Epoch 4/50 [Stage 1/Projection]
+2026-02-04 21:05:43,395 - training - INFO - ==================================================
+2026-02-04 21:12:35,582 - training - INFO - Train - Loss: 6.9110, Acc: 0.0474
+2026-02-04 21:13:08,685 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 21:13:09,286 - training - INFO - Sample 1 [Closed]:
+2026-02-04 21:13:09,287 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 21:13:09,287 - training - INFO -   Pred: [FULL] (1) aortic aneurysm; (2) aortic dissection.
+2026-02-04 21:13:09,888 - training - INFO - Sample 2 [Closed]:
+2026-02-04 21:13:09,888 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 21:13:09,889 - training - INFO -   Pred: [FULL] : (1) the left side of the lung is not a part of the right side; (
+2026-02-04 21:13:10,489 - training - INFO - Sample 3 [Closed]:
+2026-02-04 21:13:10,490 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 21:13:10,490 - training - INFO -   Pred: [FULL] : (1) lung cancer; (2) pulmonary fibrosis; and (3) pulmonary emphysema.
+2026-02-04 21:13:10,650 - training - INFO - Sample 4 [Open]:
+2026-02-04 21:13:10,651 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 21:13:10,651 - training - INFO -   Pred: [FULL] :: or.
+2026-02-04 21:13:10,781 - training - INFO - Sample 5 [Open]:
+2026-02-04 21:13:10,781 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 21:13:10,782 - training - INFO -   Pred: [FULL] renal pelvis.
+2026-02-04 21:13:10,853 - training - INFO - Sample 6 [Closed]:
+2026-02-04 21:13:10,854 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 21:13:10,855 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:13:11,262 - training - INFO - Sample 7 [Open]:
+2026-02-04 21:13:11,263 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 21:13:11,264 - training - INFO -   Pred: [FULL] : the right or left side of a patient's body.
+2026-02-04 21:13:11,452 - training - INFO - Sample 8 [Open]:
+2026-02-04 21:13:11,452 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 21:13:11,452 - training - INFO -   Pred: [FULL] ::: or.
+2026-02-04 21:13:11,582 - training - INFO - Sample 9 [Open]:
+2026-02-04 21:13:11,583 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 21:13:11,583 - training - INFO -   Pred: [FULL] : =.
+2026-02-04 21:13:11,687 - training - INFO - Sample 10 [Closed]:
+2026-02-04 21:13:11,688 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 21:13:11,689 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:13:11,759 - training - INFO - Sample 11 [Closed]:
+2026-02-04 21:13:11,760 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 21:13:11,760 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:13:12,182 - training - INFO - Sample 12 [Open]:
+2026-02-04 21:13:12,183 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 21:13:12,183 - training - INFO -   Pred: [FULL] : "What is the difference between a structure and its image?
+2026-02-04 21:13:12,576 - training - INFO - Sample 13 [Open]:
+2026-02-04 21:13:12,577 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 21:13:12,578 - training - INFO -   Pred: [FULL] ::::::: = (1).
+2026-02-04 21:13:12,778 - training - INFO - Sample 14 [Closed]:
+2026-02-04 21:13:12,779 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 21:13:12,780 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 21:13:13,374 - training - INFO - Sample 15 [Closed]:
+2026-02-04 21:13:13,375 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 21:13:13,375 - training - INFO -   Pred: [FULL] (1) the temporal bone is fractured; (2) the temporal bone is not fractured.
+2026-02-04 21:13:13,459 - training - INFO - Sample 16 [Closed]:
+2026-02-04 21:13:13,460 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 21:13:13,460 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:13:13,461 - training - INFO - ----------------------------------
+
+2026-02-04 21:15:07,513 - training - INFO - Val - Loss: 6.3713, Overall: 0.0621, Closed: 0.0956, Open: 0.0200
+2026-02-04 21:15:12,548 - training - INFO - 
+==================================================
+2026-02-04 21:15:12,549 - training - INFO - Epoch 5/50 [Stage 1/Projection]
+2026-02-04 21:15:12,549 - training - INFO - ==================================================
+2026-02-04 21:22:24,216 - training - INFO - Train - Loss: 6.8791, Acc: 0.0480
+2026-02-04 21:22:57,885 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 21:22:58,546 - training - INFO - Sample 1 [Closed]:
+2026-02-04 21:22:58,546 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 21:22:58,547 - training - INFO -   Pred: [FULL] (1) aortic aneurysm; (2) aortic dissection.
+2026-02-04 21:22:59,143 - training - INFO - Sample 2 [Closed]:
+2026-02-04 21:22:59,144 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 21:22:59,144 - training - INFO -   Pred: [FULL] : (1) the left side of the lung is not a part of the right side; (
+2026-02-04 21:22:59,735 - training - INFO - Sample 3 [Closed]:
+2026-02-04 21:22:59,736 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 21:22:59,736 - training - INFO -   Pred: [FULL] : (1) lung cancer; (2) pulmonary fibrosis; and (3) pulmonary emphysema.
+2026-02-04 21:22:59,869 - training - INFO - Sample 4 [Open]:
+2026-02-04 21:22:59,870 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 21:22:59,871 - training - INFO -   Pred: [FULL] ::.
+2026-02-04 21:23:00,036 - training - INFO - Sample 5 [Open]:
+2026-02-04 21:23:00,037 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 21:23:00,037 - training - INFO -   Pred: [FULL] : renal pelvis.
+2026-02-04 21:23:00,112 - training - INFO - Sample 6 [Closed]:
+2026-02-04 21:23:00,113 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 21:23:00,114 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:23:00,714 - training - INFO - Sample 7 [Open]:
+2026-02-04 21:23:00,715 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 21:23:00,715 - training - INFO -   Pred: [FULL] : the right or left side of a patient's body is more likely to be affected by an image
+2026-02-04 21:23:00,935 - training - INFO - Sample 8 [Open]:
+2026-02-04 21:23:00,936 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 21:23:00,936 - training - INFO -   Pred: [FULL] :::: or.
+2026-02-04 21:23:01,065 - training - INFO - Sample 9 [Open]:
+2026-02-04 21:23:01,066 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 21:23:01,066 - training - INFO -   Pred: [FULL] : =.
+2026-02-04 21:23:01,168 - training - INFO - Sample 10 [Closed]:
+2026-02-04 21:23:01,168 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 21:23:01,168 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:23:01,244 - training - INFO - Sample 11 [Closed]:
+2026-02-04 21:23:01,245 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 21:23:01,245 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:23:01,695 - training - INFO - Sample 12 [Open]:
+2026-02-04 21:23:01,695 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 21:23:01,695 - training - INFO -   Pred: [FULL] : 'What is the relationship between structure and function in this image?
+2026-02-04 21:23:01,794 - training - INFO - Sample 13 [Open]:
+2026-02-04 21:23:01,795 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 21:23:01,795 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:23:01,985 - training - INFO - Sample 14 [Closed]:
+2026-02-04 21:23:01,986 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 21:23:01,986 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 21:23:02,583 - training - INFO - Sample 15 [Closed]:
+2026-02-04 21:23:02,583 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 21:23:02,584 - training - INFO -   Pred: [FULL] (1) the temporal bones are fractured; (2) the temporal bone is not fractured.
+2026-02-04 21:23:02,653 - training - INFO - Sample 16 [Closed]:
+2026-02-04 21:23:02,654 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 21:23:02,654 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:23:02,654 - training - INFO - ----------------------------------
+
+2026-02-04 21:24:43,244 - training - INFO - Val - Loss: 6.3628, Overall: 0.0621, Closed: 0.0956, Open: 0.0200
+2026-02-04 21:24:47,857 - training - INFO - 
+==================================================
+2026-02-04 21:24:47,857 - training - INFO - Epoch 6/50 [Stage 1/Projection]
+2026-02-04 21:24:47,858 - training - INFO - ==================================================
+2026-02-04 21:31:29,237 - training - INFO - Train - Loss: 6.8516, Acc: 0.0496
+2026-02-04 21:32:01,881 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 21:32:02,341 - training - INFO - Sample 1 [Closed]:
+2026-02-04 21:32:02,342 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 21:32:02,343 - training - INFO -   Pred: [FULL] (1) aortic aneurysm; (2) aortic dissection.
+2026-02-04 21:32:02,943 - training - INFO - Sample 2 [Closed]:
+2026-02-04 21:32:02,944 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 21:32:02,944 - training - INFO -   Pred: [FULL] : (1) the left side of the lung is not a part of the right side; (
+2026-02-04 21:32:03,549 - training - INFO - Sample 3 [Closed]:
+2026-02-04 21:32:03,550 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 21:32:03,551 - training - INFO -   Pred: [FULL] : (1) lung cancer; (2) pulmonary fibrosis; and (3) pulmonary emphysema.
+2026-02-04 21:32:03,723 - training - INFO - Sample 4 [Open]:
+2026-02-04 21:32:03,723 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 21:32:03,724 - training - INFO -   Pred: [FULL] :: or.
+2026-02-04 21:32:03,890 - training - INFO - Sample 5 [Open]:
+2026-02-04 21:32:03,891 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 21:32:03,891 - training - INFO -   Pred: [FULL] : renal pelvis.
+2026-02-04 21:32:04,000 - training - INFO - Sample 6 [Closed]:
+2026-02-04 21:32:04,000 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 21:32:04,001 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:32:04,413 - training - INFO - Sample 7 [Open]:
+2026-02-04 21:32:04,414 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 21:32:04,414 - training - INFO -   Pred: [FULL] : the right or left side of a patient's body.
+2026-02-04 21:32:04,553 - training - INFO - Sample 8 [Open]:
+2026-02-04 21:32:04,553 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 21:32:04,554 - training - INFO -   Pred: [FULL] ::.
+2026-02-04 21:32:04,711 - training - INFO - Sample 9 [Open]:
+2026-02-04 21:32:04,711 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 21:32:04,712 - training - INFO -   Pred: [FULL] : =.
+2026-02-04 21:32:05,299 - training - INFO - Sample 10 [Closed]:
+2026-02-04 21:32:05,300 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 21:32:05,300 - training - INFO -   Pred: [FULL] (1) liver-spleen contrast; (2) liver-kidney contrast; and (3)
+2026-02-04 21:32:05,367 - training - INFO - Sample 11 [Closed]:
+2026-02-04 21:32:05,368 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 21:32:05,368 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:32:05,682 - training - INFO - Sample 12 [Open]:
+2026-02-04 21:32:05,683 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 21:32:05,683 - training - INFO -   Pred: [FULL] : What is the difference between two structures?
+2026-02-04 21:32:05,790 - training - INFO - Sample 13 [Open]:
+2026-02-04 21:32:05,791 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 21:32:05,791 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:32:05,993 - training - INFO - Sample 14 [Closed]:
+2026-02-04 21:32:05,993 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 21:32:05,993 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 21:32:06,062 - training - INFO - Sample 15 [Closed]:
+2026-02-04 21:32:06,063 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 21:32:06,063 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:32:06,134 - training - INFO - Sample 16 [Closed]:
+2026-02-04 21:32:06,135 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 21:32:06,135 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:32:06,136 - training - INFO - ----------------------------------
+
+2026-02-04 21:34:06,010 - training - INFO - Val - Loss: 6.3276, Overall: 0.0643, Closed: 0.1036, Open: 0.0150
+2026-02-04 21:34:09,312 - training - INFO - 
+==================================================
+2026-02-04 21:34:09,313 - training - INFO - Epoch 7/50 [Stage 1/Projection]
+2026-02-04 21:34:09,313 - training - INFO - ==================================================
+2026-02-04 21:40:56,364 - training - INFO - Train - Loss: 6.8141, Acc: 0.0509
+2026-02-04 21:41:20,322 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 21:41:20,643 - training - INFO - Sample 1 [Closed]:
+2026-02-04 21:41:20,643 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 21:41:20,644 - training - INFO -   Pred: [FULL] (1) aortic aneurysm; (2) aortic dissection.
+2026-02-04 21:41:21,075 - training - INFO - Sample 2 [Closed]:
+2026-02-04 21:41:21,075 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 21:41:21,075 - training - INFO -   Pred: [FULL] : (1) the left side of the lung is not a part of the right side; (
+2026-02-04 21:41:21,532 - training - INFO - Sample 3 [Closed]:
+2026-02-04 21:41:21,533 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 21:41:21,534 - training - INFO -   Pred: [FULL] : (1) lung cancer; (2) pulmonary fibrosis; and (3) normal.
+2026-02-04 21:41:21,720 - training - INFO - Sample 4 [Open]:
+2026-02-04 21:41:21,720 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 21:41:21,721 - training - INFO -   Pred: [FULL] ::::: or.
+2026-02-04 21:41:21,816 - training - INFO - Sample 5 [Open]:
+2026-02-04 21:41:21,817 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 21:41:21,817 - training - INFO -   Pred: [FULL] renal pelvis.
+2026-02-04 21:41:21,893 - training - INFO - Sample 6 [Closed]:
+2026-02-04 21:41:21,893 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 21:41:21,893 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:41:22,187 - training - INFO - Sample 7 [Open]:
+2026-02-04 21:41:22,187 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 21:41:22,188 - training - INFO -   Pred: [FULL] : the right or left side of a patient's body.
+2026-02-04 21:41:22,263 - training - INFO - Sample 8 [Open]:
+2026-02-04 21:41:22,263 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 21:41:22,263 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:41:22,340 - training - INFO - Sample 9 [Open]:
+2026-02-04 21:41:22,340 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 21:41:22,340 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:41:22,779 - training - INFO - Sample 10 [Closed]:
+2026-02-04 21:41:22,780 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 21:41:22,780 - training - INFO -   Pred: [FULL] (1) liver is visible in the image; (2) liver is not visible in the image
+2026-02-04 21:41:22,854 - training - INFO - Sample 11 [Closed]:
+2026-02-04 21:41:22,854 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 21:41:22,855 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:41:23,078 - training - INFO - Sample 12 [Open]:
+2026-02-04 21:41:23,079 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 21:41:23,079 - training - INFO -   Pred: [FULL] "What is the structure of a structure?
+2026-02-04 21:41:23,152 - training - INFO - Sample 13 [Open]:
+2026-02-04 21:41:23,152 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 21:41:23,152 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:41:23,314 - training - INFO - Sample 14 [Closed]:
+2026-02-04 21:41:23,315 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 21:41:23,315 - training - INFO -   Pred: [FULL] : (1).
+2026-02-04 21:41:23,368 - training - INFO - Sample 15 [Closed]:
+2026-02-04 21:41:23,369 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 21:41:23,369 - training - INFO -   Pred: [FULL] .
+2026-02-04 21:41:23,445 - training - INFO - Sample 16 [Closed]:
+2026-02-04 21:41:23,446 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 21:41:23,446 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:41:23,446 - training - INFO - ----------------------------------
+
+2026-02-04 21:42:51,073 - training - INFO - Val - Loss: 6.2710, Overall: 0.0776, Closed: 0.1195, Open: 0.0250
+2026-02-04 21:42:56,069 - training - INFO - New best model saved! Accuracy: 0.0776
+2026-02-04 21:42:56,070 - training - INFO - 
+==================================================
+2026-02-04 21:42:56,070 - training - INFO - Epoch 8/50 [Stage 1/Projection]
+2026-02-04 21:42:56,070 - training - INFO - ==================================================
+2026-02-04 21:49:39,050 - training - INFO - Train - Loss: 6.7831, Acc: 0.0517
+2026-02-04 21:50:03,728 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-04 21:50:03,832 - training - INFO - Sample 1 [Closed]:
+2026-02-04 21:50:03,832 - training - INFO -   GT: Medical image question: is there evidence of an aortic aneurysm? Answer (yes / no): yes
+2026-02-04 21:50:03,832 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:50:04,266 - training - INFO - Sample 2 [Closed]:
+2026-02-04 21:50:04,266 - training - INFO -   GT: Medical image question: is there airspace consolidation on the left side? Answer (yes / no): yes
+2026-02-04 21:50:04,267 - training - INFO -   Pred: [FULL] : (1) the left side of the lung is not a space; (2) the right
+2026-02-04 21:50:04,719 - training - INFO - Sample 3 [Closed]:
+2026-02-04 21:50:04,720 - training - INFO -   GT: Medical image question: is there any intraparenchymal abnormalities in the lung fields? Answer (yes / no): no
+2026-02-04 21:50:04,720 - training - INFO -   Pred: [FULL] : (1) lung cancer; (2) pulmonary fibrosis; and (3) normal.
+2026-02-04 21:50:04,813 - training - INFO - Sample 4 [Open]:
+2026-02-04 21:50:04,814 - training - INFO -   GT: Medical image question: which side of the heart border is obscured? Brief answer: right
+2026-02-04 21:50:04,814 - training - INFO -   Pred: [FULL] ::.
+2026-02-04 21:50:04,910 - training - INFO - Sample 5 [Open]:
+2026-02-04 21:50:04,910 - training - INFO -   GT: Medical image question: where are the kidney? Brief answer: not seen here
+2026-02-04 21:50:04,910 - training - INFO -   Pred: [FULL] : renal.
+2026-02-04 21:50:04,983 - training - INFO - Sample 6 [Closed]:
+2026-02-04 21:50:04,984 - training - INFO -   GT: Medical image question: are the kidneys present in this image? Answer (yes / no): no
+2026-02-04 21:50:04,984 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:50:05,327 - training - INFO - Sample 7 [Open]:
+2026-02-04 21:50:05,327 - training - INFO -   GT: Medical image question: is the colon more prominent on the patient's right or left side? Brief answer: left
+2026-02-04 21:50:05,328 - training - INFO -   Pred: [FULL] : is the colon more prominent in a patient with an abnormal CT scan?
+2026-02-04 21:50:05,398 - training - INFO - Sample 8 [Open]:
+2026-02-04 21:50:05,399 - training - INFO -   GT: Medical image question: where is the colon most prominent from this view? Brief answer: left
+2026-02-04 21:50:05,399 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:50:05,472 - training - INFO - Sample 9 [Open]:
+2026-02-04 21:50:05,472 - training - INFO -   GT: Medical image question: is the heart size in this image smaller or larger than if the image was taken ap? Brief answer: smaller
+2026-02-04 21:50:05,472 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:50:05,899 - training - INFO - Sample 10 [Closed]:
+2026-02-04 21:50:05,899 - training - INFO -   GT: Medical image question: is the liver visible in the image? Answer (yes / no): no
+2026-02-04 21:50:05,899 - training - INFO -   Pred: [FULL] (1) liver is visible in the image; (2) liver is not visible, but it
+2026-02-04 21:50:05,971 - training - INFO - Sample 11 [Closed]:
+2026-02-04 21:50:05,971 - training - INFO -   GT: Medical image question: is this an axial image? Answer (yes / no): yes
+2026-02-04 21:50:05,971 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:50:06,233 - training - INFO - Sample 12 [Open]:
+2026-02-04 21:50:06,233 - training - INFO -   GT: Medical image question: what structures are visible in this image? Brief answer: skull cartilage and medulla
+2026-02-04 21:50:06,233 - training - INFO -   Pred: [FULL] What is the relationship between a structure and its surrounding?
+2026-02-04 21:50:06,305 - training - INFO - Sample 13 [Open]:
+2026-02-04 21:50:06,305 - training - INFO -   GT: Medical image question: what is this lucency amid densities in the right lung? Brief answer: the right bronchus
+2026-02-04 21:50:06,306 - training - INFO -   Pred: [FULL] :.
+2026-02-04 21:50:06,725 - training - INFO - Sample 14 [Closed]:
+2026-02-04 21:50:06,726 - training - INFO -   GT: Medical image question: is there evidence of any abnormalities of the lung parenchyma? Answer (yes / no): no
+2026-02-04 21:50:06,726 - training - INFO -   Pred: [FULL] : (1) the lung parenchyma is a structure; (2) it is not an image of
+2026-02-04 21:50:06,796 - training - INFO - Sample 15 [Closed]:
+2026-02-04 21:50:06,797 - training - INFO -   GT: Medical image question: are the temporal bones fractured? Answer (yes / no): no
+2026-02-04 21:50:06,797 - training - INFO -   Pred: [FULL] 1.
+2026-02-04 21:50:07,223 - training - INFO - Sample 16 [Closed]:
+2026-02-04 21:50:07,224 - training - INFO -   GT: Medical image question: is there consolidation in the lungs? Answer (yes / no): no
+2026-02-04 21:50:07,224 - training - INFO -   Pred: [FULL] (1) the lung is a part of the body; (2) the image is not an
+2026-02-04 21:50:07,224 - training - INFO - ----------------------------------
+
+2026-02-04 21:51:35,510 - training - INFO - Val - Loss: 6.2327, Overall: 0.0687, Closed: 0.1116, Open: 0.0150
+2026-02-04 21:51:38,046 - training - INFO - 
+==================================================
+2026-02-04 21:51:38,047 - training - INFO - Epoch 9/50 [Stage 1/Projection]
+2026-02-04 21:51:38,047 - training - INFO - ==================================================

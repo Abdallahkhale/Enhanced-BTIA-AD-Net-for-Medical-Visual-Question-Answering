@@ -98,20 +98,30 @@ def train_epoch(
              question_mask = batch['question_mask'].to(device, non_blocking=True)
              targets = batch['answer_idx'].to(device, non_blocking=True)
              
-        is_closed = batch['is_closed'].to(device, non_blocking=True)
+        # is_closed not needed - tri-head uses question_type for routing
+        
         
         # Forward pass with mixed precision
         if use_fp16 and scaler is not None:
             with autocast(device_type='cuda'):
                 if 'input_ids' in batch:
-                    # Generative
+                    # Generative with tri-head routing
+                    # Custom sampler ensures each batch has only one question type
+                    question_type = batch.get('question_type', None)
+                    
+                    if question_type is None:
+                        question_type = 'rare_open'
+                    elif isinstance(question_type, list):
+                        question_type = question_type[0] if question_type else 'rare_open'
+                    
                     outputs = model(
                         images=images,
                         input_ids=input_ids,
                         attention_mask=attention_mask,
-                        labels=labels
+                        labels=labels,
+                        question_type=question_type
                     )
-                    losses = {'loss': outputs.loss}
+                    losses = {'loss': outputs.get('loss', outputs.loss) if hasattr(outputs, 'loss') else outputs['loss']}
                 else:
                     # Discriminative
                     outputs = model(
@@ -130,20 +140,34 @@ def train_epoch(
             # Gradient accumulation
             if (batch_idx + 1) % grad_accum_steps == 0:
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                # Aggressive gradient clipping to prevent explosion
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+                
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
         else:
             if 'input_ids' in batch:
-                # Generative
+                # Generative with tri-head routing
+                # Custom sampler ensures each batch has only one question type
+                question_type = batch.get('question_type', None)
+                
+                if question_type is None:
+                    # Fallback if question_type not provided
+                    question_type = 'rare_open'
+                elif isinstance(question_type, list):
+                    # Extract the type - all should be the same due to custom sampler
+                    question_type = question_type[0] if question_type else 'rare_open'
+                
+                # Now question_type is a string
                 outputs = model(
                     images=images,
                     input_ids=input_ids,
                     attention_mask=attention_mask,
-                    labels=labels
+                    labels=labels,
+                    question_type=question_type
                 )
-                losses = {'loss': outputs.loss}
+                losses = {'loss': outputs.get('loss', outputs.loss) if hasattr(outputs, 'loss') else outputs['loss']}
             else:
                 outputs = model(
                     images=images,
@@ -170,28 +194,50 @@ def train_epoch(
              cls_loss_val = losses.get('cls_loss', torch.tensor(0.0)).item()
              ad_loss_val = losses.get('ad_loss', torch.tensor(0.0)).item()
         else:
-             # Generative Accuracy (Next Token Prediction) for TRAINING progress bar
+             # Generative/Tri-Head Accuracy for TRAINING progress bar
              with torch.no_grad():
-                 logits = outputs.logits
-                 # Slice logits to remove visual prefix if needed
-                 # labels are text only. logits are image+text.
-                 if logits.shape[1] > labels.shape[1]:
-                     n_vis = logits.shape[1] - labels.shape[1]
-                     text_logits = logits[:, n_vis:, :]
+                 # Tri-head returns dict for classification, object for generation
+                 if isinstance(outputs, dict):
+                     # Classification heads (yes_no, common_open)
+                     if 'logits' in outputs:
+                         logits = outputs['logits']
+                         # Check if this is actually classification (2D) or generation (3D)
+                         if logits.dim() == 2:
+                             # Classification: [B, num_classes]
+                             preds = torch.argmax(logits, dim=-1)  # [B]
+                             # Labels should be 1D class indices
+                             if labels.dim() > 1:
+                                 class_labels = labels[:, 0] if labels.size(1) > 0 else labels.flatten()
+                             else:
+                                 class_labels = labels
+                             acc_val = (preds == class_labels).float().mean().item()
+                         else:
+                             # This is actually generation logits, handle as generation
+                             acc_val = 0.0  # Skip for now or handle as generation
+                     else:
+                         acc_val = 0.0
                  else:
-                     text_logits = logits
+                     # Generation head (rare_open) - token-level accuracy
+                     logits = outputs.logits
+                     # Slice logits to remove visual prefix if needed
+                     # labels are text only. logits are image+text.
+                     if logits.shape[1] > labels.shape[1]:
+                         n_vis = logits.shape[1] - labels.shape[1]
+                         text_logits = logits[:, n_vis:, :]
+                     else:
+                         text_logits = logits
+                         
+                     shift_logits = text_logits[..., :-1, :].contiguous()
+                     shift_labels = labels[..., 1:].contiguous()
                      
-                 shift_logits = text_logits[..., :-1, :].contiguous()
-                 shift_labels = labels[..., 1:].contiguous()
-                 
-                 preds = torch.argmax(shift_logits, dim=-1)
-                 mask = shift_labels != -100
-                 
-                 if mask.sum() > 0:
-                     correct = (preds == shift_labels) & mask
-                     acc_val = (correct.sum().float() / mask.sum().float()).item()
-                 else:
-                     acc_val = 0.0
+                     preds = torch.argmax(shift_logits, dim=-1)
+                     mask = shift_labels != -100
+                     
+                     if mask.sum() > 0:
+                         correct = (preds == shift_labels) & mask
+                         acc_val = (correct.sum().float() / mask.sum().float()).item()
+                     else:
+                         acc_val = 0.0
                      
              cls_loss_val = 0.0
              ad_loss_val = 0.0
@@ -252,8 +298,7 @@ def validate(
     
     for i, batch in enumerate(tqdm(val_loader, desc="Validating")):
         images = batch['images'].to(device, non_blocking=True)
-        images = batch['images'].to(device, non_blocking=True)
-        is_closed = batch['is_closed'].to(device, non_blocking=True)
+        # is_closed removed - tri-head uses question_type
         
         # Initialize discriminative inputs as None
         question_ids = None
@@ -268,18 +313,25 @@ def validate(
         if use_fp16:
             with autocast(device_type='cuda'):
                 if 'input_ids' in batch:
-                    # Generative
+                    # Generative with tri-head routing
                     input_ids = batch['input_ids'].to(device, non_blocking=True)
                     attention_mask = batch['attention_mask'].to(device, non_blocking=True)
                     labels = batch['labels'].to(device, non_blocking=True)
+                    
+                    question_type = batch.get('question_type', None)
+                    if question_type is None:
+                        question_type = 'rare_open'
+                    elif isinstance(question_type, list):
+                        question_type = question_type[0] if question_type else 'rare_open'
                     
                     outputs = model(
                         images=images,
                         input_ids=input_ids,
                         attention_mask=attention_mask,
-                        labels=labels
+                        labels=labels,
+                        question_type=question_type
                     )
-                    losses = {'loss': outputs.loss}
+                    losses = {'loss': outputs.get('loss', outputs.loss) if hasattr(outputs, 'loss') else outputs['loss']}
                     
                     # Log predictions for the first batch
                     if logger and i == 0 and hasattr(model, 'generate'):
@@ -336,9 +388,9 @@ def validate(
 
                              gt_text = tokenizer.decode(input_ids[k], skip_special_tokens=True)
                              
-                             q_type = "[Closed]" if is_closed[k].item() else "[Open]"
+                             q_type = question_type if isinstance(question_type, str) else "[Unknown]"
                              
-                             logger.info(f"Sample {k+1} {q_type}:")
+                             logger.info(f"Sample {k+1} [{q_type}]:")
                              logger.info(f"  GT: {gt_text}")
                              logger.info(f"  Pred: {answer_only.strip()}")
                              
@@ -351,101 +403,93 @@ def validate(
                     # Let's use the provided labels to check if top-1 token matches?
                     # CausalLM accuracy is next-token prediction accuracy.
                     
-                    # Flatten stats
-                    # Flatten stats
-                    logits = outputs.logits # [B, N_vis + L, V] - BioGPT includes image tokens
-                    
-                    # We must Slice logits to remove the visual prefix
-                    # The labels [B, L] correspond to the TEXT part only (image part handled in forward)
-                    # Wait, in forward() we CAT inputs: [Image, Text].
-                    # So logits are [Image_Logits, Text_Logits].
-                    # We need to slice off the first N_vis logits.
-                    # N_vis = model.vis_hidden_dim? No, N_vis is sequence length.
-                    # For ViT it's 197. For ResNet reshaped it's 2048? No, it's 7x7=49.
-                    # Let's deduce N_vis from the shape difference.
-                    # logits width = N_vis + L
-                    # labels width = L
-                    n_vis = logits.shape[1] - labels.shape[1]
-                    
-                    text_logits = logits[:, n_vis:, :] # [B, L, V]
-                    
-                    shift_logits = text_logits[..., :-1, :].contiguous()
-                    shift_labels = labels[..., 1:].contiguous()
-                    
-                    # Flatten
-                    preds = torch.argmax(shift_logits, dim=-1)
-                    mask = shift_labels != -100
-                    
-                    # Initialize metrics dict
-                    acc = {'overall': 0.0}
-                    
-                    if mask.sum() > 0:
-                        correct = (preds == shift_labels) & mask
-                        batch_acc = correct.sum().float() / mask.sum().float()
-                        acc['overall'] = batch_acc.item()
+                    # Handle tri-head: dict for classification, object for generation
+                    if isinstance(outputs, dict):
+                        # Classification heads
+                        if 'logits' in outputs:
+                            preds = torch.argmax(outputs['logits'], dim=-1)
+                            acc = {'overall': (preds == labels).float().mean().item()}
+                        else:
+                            acc = {'overall': 0.0}
                     else:
-                        acc['overall'] = 0.0
+                        # Generation head - token-level accuracy
+                        logits = outputs.logits # [B, N_vis + L, V]
+                        
+                        # Slice logits to remove visual prefix
+                        n_vis = logits.shape[1] - labels.shape[1]
+                        text_logits = logits[:, n_vis:, :] # [B, L, V]
+                        
+                        shift_logits = text_logits[..., :-1, :].contiguous()
+                        shift_labels = labels[..., 1:].contiguous()
+                        
+                        preds = torch.argmax(shift_logits, dim=-1)
+                        mask = shift_labels != -100
+                        
+                        acc = {'overall': 0.0}
+                        
+                        if mask.sum() > 0:
+                            correct = (preds == shift_labels) & mask
+                            batch_acc = correct.sum().float() / mask.sum().float()
+                            acc['overall'] = batch_acc.item()
+                        else:
+                            acc['overall'] = 0.0
 
                 else:
-                    # Discriminative
-                    outputs = model(
-                        images=images,
-                        question_ids=question_ids,
-                        question_mask=question_mask,
-                        is_closed=is_closed
-                    )
-                    losses = model.compute_loss(outputs, targets, ad_weight=ad_weight)
+                    # Discriminative (legacy - not used with tri-head)
+                    # Skip - this path shouldn't be reached with tri-head architecture
+                    losses = {'loss': torch.tensor(0.0, device=device)}
+                    acc = {'overall': 0.0}
         else:
+            # Non-FP16 path
             if 'input_ids' in batch:
-                # Generative
+                # Generative with tri-head routing
                 input_ids = batch['input_ids'].to(device, non_blocking=True)
                 attention_mask = batch['attention_mask'].to(device, non_blocking=True)
                 labels = batch['labels'].to(device, non_blocking=True)
+                
+                question_type = batch.get('question_type', None)
+                if question_type is None:
+                    question_type = 'rare_open'
+                elif isinstance(question_type, list):
+                    question_type = question_type[0] if question_type else 'rare_open'
                 
                 outputs = model(
                     images=images,
                     input_ids=input_ids,
                     attention_mask=attention_mask,
-                    labels=labels
+                    labels=labels,
+                    question_type=question_type
                 )
-                losses = {'loss': outputs.loss}
+                
+                if isinstance(outputs, dict):
+                    losses = {'loss': outputs.get('loss', torch.tensor(0.0, device=device))}
+                else:
+                    losses = {'loss': outputs.loss}
             else:
-                outputs = model(
-                    images=images,
-                    question_ids=question_ids,
-                    question_mask=question_mask,
-                    is_closed=is_closed
-                )
-                losses = model.compute_loss(outputs, targets, ad_weight=ad_weight)
+                # Discriminative (legacy - not used)
+                losses = {'loss': torch.tensor(0.0, device=device)}
         
         # Compute predictions
         batch_size = images.size(0)
         loss_meter.update(losses['loss'].item(), batch_size)
         
-        if 'input_ids' not in batch:
-            # Discriminative metrics
-            predictions = torch.argmax(outputs['logits'], dim=-1)
-            correct = (predictions == targets)
-            
-            overall_correct += correct.sum().item()
-            overall_total += batch_size
-            
-            closed_mask = is_closed.bool()
-            open_mask = ~closed_mask
-            
-            closed_correct += correct[closed_mask].sum().item()
-            closed_total += closed_mask.sum().item()
-            
-            open_correct += correct[open_mask].sum().item()
-            open_total += open_mask.sum().item()
-            
-            # Debug: Log first batch of open predictions
-            if open_mask.sum() > 0 and overall_total <= batch_size * 2:
-                open_preds = predictions[open_mask]
-                open_targets = targets[open_mask]
-                if logger is not None:
-                    logger.debug(f"Open predictions sample: {open_preds[:5].tolist()}")
-                    logger.debug(f"Open targets sample: {open_targets[:5].tolist()}")
+        
+        # Tri-head validation metrics
+        if 'input_ids' in batch:
+            # Generative or classification metrics based on output type
+            if isinstance(outputs, dict) and 'logits' in outputs:
+                # Classification head - compute accuracy
+                preds = torch.argmax(outputs['logits'], dim=-1)
+                if labels.dim() > 1:
+                    class_labels = labels[:, 0]
+                else:
+                    class_labels = labels
+                correct_count = (preds == class_labels).sum().item()
+                overall_correct += correct_count
+                overall_total += batch_size
+            else:
+                # Generation head - use loss as primary metric
+                overall_total += batch_size  # Track for averaging
         else:
             # Generative metrics - compute actual VQA accuracy
             # Generate answers and compare with ground truth
@@ -531,16 +575,8 @@ def validate(
                     
                     if is_correct:
                         overall_correct += 1
-                        if is_closed[k].item():
-                            closed_correct += 1
-                        else:
-                            open_correct += 1
                     
                     overall_total += 1
-                    if is_closed[k].item():
-                        closed_total += 1
-                    else:
-                        open_total += 1
     
     # Compute final metrics
     overall_acc = overall_correct / max(overall_total, 1)

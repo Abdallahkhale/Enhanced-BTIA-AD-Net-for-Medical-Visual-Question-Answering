@@ -257,82 +257,20 @@ class MedVQADataset(Dataset):
         
         # Generative Mode Tokenization
         if self.generative_mode:
-            questions = sample['question'] # Is this singular or batch?
-            # It's definitely singular in getitem.
-            
-            # Determine if this is a closed (yes/no) or open question
-            is_closed = sample.get('answer_type', 'OPEN').upper() in ['CLOSED', 'YES/NO'] or \
-                       sample['answer'].lower() in ['yes', 'no']
-            
-            # Use different prompts for open vs closed questions
-            # This teaches the model when to give yes/no vs descriptive answers
-            if is_closed:
-                # Closed-ended: expect yes/no answer
-                prompt = f"Question: {sample['question']} Answer yes or no:"
-            else:
-                # Open-ended: expect descriptive answer
-                # "Provide a detailed answer" triggers BioGPT's paper generation mode
-                # "Answer:" is more constrained and effective for VQA
-                prompt = f"Question: {sample['question']} Answer:"
-            
-            answer_text = f" {sample['answer']}"
-            
-            # 1. Tokenize Prompt
-            prompt_enc = self.tokenizer(
-                prompt,
-                truncation=True, 
-                max_length=self.max_question_length,
-                add_special_tokens=False, # We'll manage special tokens manually if needed
-                return_tensors='pt'
-            )
-            prompt_ids = prompt_enc['input_ids'].squeeze(0)
-            
-            # 2. Tokenize Answer + EOS
-            answer_enc = self.tokenizer(
-                answer_text + self.tokenizer.eos_token,
-                truncation=True,
-                max_length=32, # Max answer length
-                add_special_tokens=False,
-                return_tensors='pt'
-            )
-            answer_ids = answer_enc['input_ids'].squeeze(0)
-            
-            # 3. Concatenate
-            input_ids = torch.cat([prompt_ids, answer_ids], dim=0)
-            attention_mask = torch.ones_like(input_ids)
-            
-            # 4. Create Labels
-            # Mask prompt with -100
-            labels = input_ids.clone()
-            labels[:len(prompt_ids)] = -100
-            
-            # 5. Pad to max_length
-            max_len = self.max_question_length + 32
-            if len(input_ids) < max_len:
-                pad_len = max_len - len(input_ids)
-                pad_ids = torch.full((pad_len,), self.tokenizer.pad_token_id, dtype=torch.long)
-                input_ids = torch.cat([input_ids, pad_ids], dim=0)
-                attention_mask = torch.cat([attention_mask, torch.zeros(pad_len, dtype=torch.long)], dim=0)
-                labels = torch.cat([labels, torch.full((pad_len,), -100, dtype=torch.long)], dim=0)
-            else:
-                # Truncate if somehow too long (unlikely given chunks)
-                input_ids = input_ids[:max_len]
-                attention_mask = attention_mask[:max_len]
-                labels = labels[:max_len]
-            
-            # If 'answer_type' is closed, mark it
-            is_closed = sample.get('answer_type', 'OPEN').upper() in ['CLOSED', 'YES/NO'] or \
-                       sample['answer'].lower() in ['yes', 'no']
+            # Use helper function for tri-head processing
+            from data.dataset_utils import process_generative_sample_trihead
+            processed = process_generative_sample_trihead(sample, self.tokenizer, self.max_question_length)
             
             return {
                 'images': image,
-                'input_ids': input_ids,
-                'attention_mask': attention_mask,
-                'labels': labels, # For CausalLM loss
+                'input_ids': processed['input_ids'],
+                'attention_mask': processed['attention_mask'],
+                'labels': processed['label'],
                 'question': sample['question'],
-                'answer_text': sample['answer'],
-                'is_closed': torch.tensor(1 if is_closed else 0, dtype=torch.long)
+                'answer_text': processed['answer_text'],
+                'question_type': processed['question_type']
             }
+
 
         # Discriminative Mode (Legacy)
         encoded = self.tokenizer(
@@ -449,15 +387,29 @@ def create_dataloaders(
     collator = VQACollator()
     
     # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=True,
-        drop_last=True,
-        collate_fn=collator
-    )
+    if generative_mode:
+        # Use custom sampler to group by question type
+        from data.samplers import QuestionTypeBatchSampler
+        batch_sampler = QuestionTypeBatchSampler(train_dataset, batch_size)
+        
+        train_loader = DataLoader(
+            train_dataset,
+            batch_sampler=batch_sampler,
+            num_workers=num_workers,
+            pin_memory=True,
+            collate_fn=collator
+        )
+    else:
+        # Standard shuffled dataloader for discriminative
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=True,
+            collate_fn=collator
+        )
     
     test_loader = DataLoader(
         test_dataset,
@@ -477,15 +429,7 @@ class VQACollator:
     """
     
     def __call__(self, batch: List[Dict]) -> Dict[str, torch.Tensor]:
-        """Collate batch of samples."""
-        # Fix: access 'image' or 'images' consistently
-        # dataset.__getitem__ returns 'images' if we fixed it, or 'image'?
-        # Previous view showed 'images': image in generative mode block, but 'image': image in discrim mode.
-        # Let's check `__getitem__` return keys again. 
-        # Line 309 in Step 504: 'images': image
-        # Line 267 in Step 458: 'image': image (Discrim)
-        # So we handle both.
-        
+        """Collate batch of samples with dynamic padding for variable-length tensors."""
         images = torch.stack([s.get('images', s.get('image')) for s in batch])
         questions = [s['question'] for s in batch]
         
@@ -495,17 +439,75 @@ class VQACollator:
         }
         
         if 'input_ids' in batch[0]:
-            # Generative
-            result['input_ids'] = torch.stack([s['input_ids'] for s in batch])
-            result['attention_mask'] = torch.stack([s['attention_mask'] for s in batch])
-            result['labels'] = torch.stack([s['labels'] for s in batch])
+            # Generative - need to pad to same length
+            # Find max length in batch
+            max_len = max(s['input_ids'].size(0) for s in batch)
+            
+            padded_input_ids = []
+            padded_attention_mask = []
+            padded_labels = []
+            
+            # Detect label types in batch
+            label_types = [s['labels'].dim() for s in batch]
+            has_mixed = len(set(label_types)) > 1
+            
+            for s in batch:
+                input_ids = s['input_ids']
+                attention_mask = s['attention_mask']
+                labels = s['labels']
+                
+                # Pad input_ids and attention_mask
+                if input_ids.size(0) < max_len:
+                    pad_len = max_len - input_ids.size(0)
+                    pad_id = 0  # Default pad token
+                    input_ids = torch.cat([input_ids, torch.full((pad_len,), pad_id, dtype=input_ids.dtype)])
+                    attention_mask = torch.cat([attention_mask, torch.zeros(pad_len, dtype=attention_mask.dtype)])
+                
+                # Handle labels based on dim
+                if labels.dim() == 0:
+                    # Scalar classification label - expand to 1D for stacking
+                    labels = labels.unsqueeze(0)
+                elif labels.dim() > 0 and labels.size(0) < max_len:
+                    # Sequence label - pad to max_len
+                    pad_len = max_len - labels.size(0)
+                    labels = torch.cat([labels, torch.full((pad_len,), -100, dtype=labels.dtype)])
+                
+                padded_input_ids.append(input_ids)
+                padded_attention_mask.append(attention_mask)
+                padded_labels.append(labels)
+            
+            result['input_ids'] = torch.stack(padded_input_ids)
+            result['attention_mask'] = torch.stack(padded_attention_mask)
+            
+            # Stack labels - handle mixed sizes by padding to max
+            try:
+                result['labels'] = torch.stack(padded_labels)
+            except RuntimeError:
+                # Mixed sizes - find max and pad
+                max_label_len = max(l.size(0) for l in padded_labels)
+                padded_labels_fixed = []
+                for l in padded_labels:
+                    if l.size(0) < max_label_len:
+                        pad_len = max_label_len - l.size(0)
+                        l = torch.cat([l, torch.full((pad_len,), -100, dtype=l.dtype)])
+                    padded_labels_fixed.append(l)
+                result['labels'] = torch.stack(padded_labels_fixed)
+            
+            # Add question_type if available
+            if 'question_type' in batch[0]:
+                result['question_type'] = [s['question_type'] for s in batch]
+            
+            # Add answer_text
+            if 'answer_text' in batch[0]:
+                result['answer_text'] = [s['answer_text'] for s in batch]
         else:
             # Discriminative
             result['question_ids'] = torch.stack([s['question_ids'] for s in batch])
             result['question_mask'] = torch.stack([s['question_mask'] for s in batch])
             result['answer_idx'] = torch.stack([s['answer_idx'] for s in batch])
             
-        # Common
-        result['is_closed'] = torch.stack([s['is_closed'] for s in batch])
+        # Common - only add if exists
+        if 'is_closed' in batch[0]:
+            result['is_closed'] = torch.stack([s['is_closed'] for s in batch])
         
         return result

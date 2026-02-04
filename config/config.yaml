@@ -20,7 +20,7 @@ model:
   # Two-Stage Training (LLaVA approach - CRITICAL for generative models)
   # Stage 1: Freeze LLM, train only projection layer (cross-modal alignment)
   # Stage 2: Unfreeze LLM, train projection + LLM (fine-tuning)
-  pretraining_epochs: 10  # Number of epochs to train projection only (Stage 1) - longer alignment
+  pretraining_epochs: 3  # Reduced with tri-head architecture (classifiers converge faster)
   
   # LoRA Fine-tuning (prevents overfitting, 10x fewer params)
   use_lora: true
@@ -30,7 +30,7 @@ model:
 training:
   # Batch and Learning
   batch_size: 16
-  learning_rate: 1.0e-5  # Lower LR for better LLM fine-tuning
+  learning_rate: 5.0e-6  # Lowered from 1e-5 to prevent gradient explosion  # Lower LR for better LLM fine-tuning
   weight_decay: 0.01
   epochs: 50
   warmup_ratio: 0.1
@@ -43,7 +43,7 @@ training:
   # Checkpointing
   save_every_epoch: true
   checkpoint_dir: "checkpoints"
-  resume_from: null  # Start from scratch with new prompts
+  resume_from: null  # Fresh start with tri-head architecture  # Restart with [VQA] prompts
   
   # Early Stopping
   early_stopping_patience: 10

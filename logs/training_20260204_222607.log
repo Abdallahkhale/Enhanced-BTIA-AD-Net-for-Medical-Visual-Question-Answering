@@ -1,0 +1,14 @@
+2026-02-04 22:26:07,761 - training - INFO - Starting training with config: {'model': {'vision_encoder': 'microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224', 'text_encoder': 'microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext', 'type': 'generative', 'text_decoder': 'microsoft/BioGPT', 'freeze_vision': True, 'freeze_text': False, 'fusion_method': 'btia', 'use_answer_distillation': False, 'use_embedding_matching': False, 'pretraining_epochs': 3, 'use_lora': True, 'lora_r': 16, 'lora_alpha': 32}, 'training': {'batch_size': 16, 'learning_rate': 1e-05, 'weight_decay': 0.01, 'epochs': 50, 'warmup_ratio': 0.1, 'fp16': True, 'gradient_accumulation_steps': 2, 'gradient_checkpointing': True, 'save_every_epoch': True, 'checkpoint_dir': 'checkpoints', 'resume_from': None, 'early_stopping_patience': 10, 'early_stopping_metric': 'val_accuracy'}, 'data': {'image_size': 224, 'max_question_length': 64, 'max_answer_length': 32, 'use_slake_augmentation': False, 'use_pathvqa_augmentation': True, 'train_split': 0.8, 'num_workers': 4, 'vqa_rad_dir': 'data/vqa_rad', 'slake_dir': 'data/slake', 'pathvqa_dir': 'data/pathvqa'}, 'logging': {'log_dir': 'logs', 'log_every_n_steps': 10, 'use_tensorboard': True}}
+2026-02-04 22:26:07,764 - training - INFO - Creating data loaders...
+2026-02-04 22:26:17,530 - training - INFO - Creating model...
+2026-02-04 22:26:25,603 - training - INFO - Model parameters: {'total': 420805030, 'trainable': 7132518, 'frozen': 413672512}
+2026-02-04 22:26:25,605 - training - INFO - 
+*** Two-Stage Training Enabled ***
+2026-02-04 22:26:25,606 - training - INFO - Stage 1: 3 epochs training projection only (LLM frozen)
+2026-02-04 22:26:25,607 - training - INFO - Stage 2: Remaining epochs training projection + LLM
+2026-02-04 22:26:25,612 - training - INFO - After freezing LLM - Parameters: {'total': 420805030, 'trainable': 3986790, 'frozen': 416818240}
+2026-02-04 22:26:25,614 - training - INFO - Starting training...
+2026-02-04 22:26:25,616 - training - INFO - 
+==================================================
+2026-02-04 22:26:25,617 - training - INFO - Epoch 1/50 [Stage 1/Projection]
+2026-02-04 22:26:25,617 - training - INFO - ==================================================
