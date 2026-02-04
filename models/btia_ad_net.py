@@ -141,6 +141,15 @@ class EnhancedBTIANet(nn.Module):
         
         # Initialize class weights (uniform by default)
         self.class_weights = None
+        
+        # Indices for masking
+        self.yes_idx = None
+        self.no_idx = None
+    
+    def set_answer_indices(self, yes_idx: int, no_idx: int):
+        """Set indices for yes/no answers for masking."""
+        self.yes_idx = yes_idx
+        self.no_idx = no_idx
     
     def set_class_weights(self, weights: torch.Tensor, device: torch.device):
         """
@@ -158,6 +167,7 @@ class EnhancedBTIANet(nn.Module):
         questions: Optional[List[str]] = None,
         question_ids: Optional[torch.Tensor] = None,
         question_mask: Optional[torch.Tensor] = None,
+        is_closed: Optional[torch.Tensor] = None,
         return_attention: bool = False
     ) -> Dict[str, torch.Tensor]:
         """
@@ -226,6 +236,33 @@ class EnhancedBTIANet(nn.Module):
         else:
             # Traditional classification
             logits = self.classifier(fused_features)  # [B, N]
+            
+        # 7. Apply Answer Masking (Hard Constraints)
+        if is_closed is not None and self.yes_idx is not None and self.no_idx is not None:
+            # Create mask: [B, N]
+            # Initialize with 0 (allowed)
+            mask = torch.zeros_like(logits)
+            
+            # For closed questions (is_closed=1):
+            # Mask everything EXCEPT yes/no
+            # Logic: If closed, set non-yes/non-no to -inf
+            closed_mask = is_closed.bool().squeeze()
+            if closed_mask.any():
+                # Allow only yes/no indices
+                mask[closed_mask, :] = -float('inf')
+                mask[closed_mask, self.yes_idx] = 0
+                mask[closed_mask, self.no_idx] = 0
+            
+            # For open questions (is_closed=0):
+            # Mask ONLY yes/no
+            # Logic: If open, set yes/no to -inf
+            open_mask = ~closed_mask
+            if open_mask.any():
+                mask[open_mask, self.yes_idx] = -float('inf')
+                mask[open_mask, self.no_idx] = -float('inf')
+            
+            # Apply mask
+            logits = logits + mask
         
         outputs = {
             'logits': logits,

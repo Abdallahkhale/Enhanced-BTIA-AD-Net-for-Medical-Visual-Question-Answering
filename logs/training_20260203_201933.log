@@ -1,0 +1,28 @@
+2026-02-03 20:19:33,454 - training - INFO - Starting training with config: {'model': {'vision_encoder': 'microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224', 'text_encoder': 'microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext', 'type': 'generative', 'text_decoder': 'microsoft/BioGPT', 'freeze_vision': True, 'freeze_text': False, 'fusion_method': 'btia', 'use_answer_distillation': False, 'use_embedding_matching': False}, 'training': {'batch_size': 16, 'learning_rate': 2e-05, 'weight_decay': 0.01, 'epochs': 50, 'warmup_ratio': 0.1, 'fp16': True, 'gradient_accumulation_steps': 2, 'gradient_checkpointing': True, 'save_every_epoch': True, 'checkpoint_dir': 'checkpoints', 'resume_from': None, 'early_stopping_patience': 10, 'early_stopping_metric': 'val_accuracy'}, 'data': {'image_size': 224, 'max_question_length': 64, 'max_answer_length': 32, 'use_slake_augmentation': False, 'use_pathvqa_augmentation': True, 'train_split': 0.8, 'num_workers': 4, 'vqa_rad_dir': 'data/vqa_rad', 'slake_dir': 'data/slake', 'pathvqa_dir': 'data/pathvqa'}, 'logging': {'log_dir': 'logs', 'log_every_n_steps': 10, 'use_tensorboard': True}}
+2026-02-03 20:19:33,456 - training - INFO - Creating data loaders...
+2026-02-03 20:19:41,831 - training - INFO - Creating model...
+2026-02-03 20:19:47,156 - training - INFO - Model parameters: {'total': 415770688, 'trainable': 392262656, 'frozen': 23508032}
+2026-02-03 20:19:47,157 - training - INFO - Starting training...
+2026-02-03 20:19:47,157 - training - INFO - 
+==================================================
+2026-02-03 20:19:47,157 - training - INFO - Epoch 1/50
+2026-02-03 20:19:47,157 - training - INFO - ==================================================
+2026-02-03 20:29:15,043 - training - INFO - Train - Loss: 5.3785, Acc: 0.0000
+2026-02-03 20:29:44,847 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-03 20:29:44,848 - training - INFO - Sample 1:
+2026-02-03 20:29:44,848 - training - INFO -   GT: Question: is there evidence of an aortic aneurysm? Answer: yes
+2026-02-03 20:29:44,848 - training - INFO -   Pred: aneurysm?
+2026-02-03 20:29:44,848 - training - INFO - Sample 2:
+2026-02-03 20:29:44,848 - training - INFO -   GT: Question: is there airspace consolidation on the left side? Answer: yes
+2026-02-03 20:29:44,849 - training - INFO -   Pred: the right side of the lung?
+2026-02-03 20:29:44,849 - training - INFO - Sample 3:
+2026-02-03 20:29:44,849 - training - INFO -   GT: Question: is there any intraparenchymal abnormalities in the lung fields? Answer: no
+2026-02-03 20:29:44,849 - training - INFO -   Pred: lesion in a patient with a history of a brain tumor?
+2026-02-03 20:29:44,849 - training - INFO - ----------------------------------
+
+2026-02-03 20:29:47,475 - training - INFO - Val - Loss: 3.2761, Overall: 0.0000, Closed: 0.0000, Open: 0.0000
+2026-02-03 20:30:17,202 - training - INFO - 
+==================================================
+2026-02-03 20:30:17,224 - training - INFO - Epoch 2/50
+2026-02-03 20:30:17,224 - training - INFO - ==================================================

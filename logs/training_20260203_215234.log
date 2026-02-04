@@ -1,0 +1,67 @@
+2026-02-03 21:52:34,433 - training - INFO - Starting training with config: {'model': {'vision_encoder': 'microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224', 'text_encoder': 'microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext', 'type': 'generative', 'text_decoder': 'microsoft/BioGPT', 'freeze_vision': True, 'freeze_text': False, 'fusion_method': 'btia', 'use_answer_distillation': False, 'use_embedding_matching': False}, 'training': {'batch_size': 16, 'learning_rate': 2e-05, 'weight_decay': 0.01, 'epochs': 50, 'warmup_ratio': 0.1, 'fp16': True, 'gradient_accumulation_steps': 2, 'gradient_checkpointing': True, 'save_every_epoch': True, 'checkpoint_dir': 'checkpoints', 'resume_from': None, 'early_stopping_patience': 10, 'early_stopping_metric': 'val_accuracy'}, 'data': {'image_size': 224, 'max_question_length': 64, 'max_answer_length': 32, 'use_slake_augmentation': False, 'use_pathvqa_augmentation': True, 'train_split': 0.8, 'num_workers': 4, 'vqa_rad_dir': 'data/vqa_rad', 'slake_dir': 'data/slake', 'pathvqa_dir': 'data/pathvqa'}, 'logging': {'log_dir': 'logs', 'log_every_n_steps': 10, 'use_tensorboard': True}}
+2026-02-03 21:52:34,440 - training - INFO - Creating data loaders...
+2026-02-03 21:52:45,674 - training - INFO - Creating model...
+2026-02-03 21:52:53,139 - training - INFO - Model parameters: {'total': 415770688, 'trainable': 392262656, 'frozen': 23508032}
+2026-02-03 21:52:53,141 - training - INFO - Starting training...
+2026-02-03 21:52:53,142 - training - INFO - 
+==================================================
+2026-02-03 21:52:53,144 - training - INFO - Epoch 1/50
+2026-02-03 21:52:53,147 - training - INFO - ==================================================
+2026-02-03 21:54:47,298 - training - INFO - Train - Loss: 6.7680, Acc: 0.0458
+2026-02-03 21:55:21,419 - training - INFO - 
+--- Generative Debug (Batch 0) ---
+2026-02-03 21:55:22,299 - training - INFO - Sample 1 [Closed]:
+2026-02-03 21:55:22,300 - training - INFO -   GT: Question: is there evidence of an aortic aneurysm? The answer is yes
+2026-02-03 21:55:22,301 - training - INFO -   Pred: [FULL] not the best.
+2026-02-03 21:55:22,356 - training - INFO - Sample 2 [Closed]:
+2026-02-03 21:55:22,357 - training - INFO -   GT: Question: is there airspace consolidation on the left side? The answer is yes
+2026-02-03 21:55:22,358 - training - INFO -   Pred: [FULL] the right.
+2026-02-03 21:55:22,416 - training - INFO - Sample 3 [Closed]:
+2026-02-03 21:55:22,417 - training - INFO -   GT: Question: is there any intraparenchymal abnormalities in the lung fields? The answer is no
+2026-02-03 21:55:22,419 - training - INFO -   Pred: [FULL] the lung.
+2026-02-03 21:55:22,545 - training - INFO - Sample 4 [Open]:
+2026-02-03 21:55:22,546 - training - INFO -   GT: Question: which side of the heart border is obscured? The answer is right
+2026-02-03 21:55:22,547 - training - INFO -   Pred: [FULL] not the same as it was in the past.
+2026-02-03 21:55:22,602 - training - INFO - Sample 5 [Open]:
+2026-02-03 21:55:22,603 - training - INFO -   GT: Question: where are the kidney? The answer is not seen here
+2026-02-03 21:55:22,605 - training - INFO -   Pred: [FULL] the same.
+2026-02-03 21:55:22,636 - training - INFO - Sample 6 [Closed]:
+2026-02-03 21:55:22,638 - training - INFO -   GT: Question: are the kidneys present in this image? The answer is no
+2026-02-03 21:55:22,639 - training - INFO -   Pred: [FULL] "
+2026-02-03 21:55:22,756 - training - INFO - Sample 7 [Open]:
+2026-02-03 21:55:22,758 - training - INFO -   GT: Question: is the colon more prominent on the patient's right or left side? The answer is left
+2026-02-03 21:55:22,759 - training - INFO -   Pred: [FULL] the right or left side of the colon.
+2026-02-03 21:55:22,871 - training - INFO - Sample 8 [Open]:
+2026-02-03 21:55:22,873 - training - INFO -   GT: Question: where is the colon most prominent from this view? The answer is left
+2026-02-03 21:55:22,873 - training - INFO -   Pred: [FULL] the same as in the first view.
+2026-02-03 21:55:23,023 - training - INFO - Sample 9 [Open]:
+2026-02-03 21:55:23,024 - training - INFO -   GT: Question: is the heart size in this image smaller or larger than if the image was taken ap? The answer is smaller
+2026-02-03 21:55:23,025 - training - INFO -   Pred: [FULL] the same as if it were taken at a different time.
+2026-02-03 21:55:23,118 - training - INFO - Sample 10 [Closed]:
+2026-02-03 21:55:23,119 - training - INFO -   GT: Question: is the liver visible in the image? The answer is no
+2026-02-03 21:55:23,120 - training - INFO -   Pred: [FULL] "It is that liver."
+2026-02-03 21:55:23,162 - training - INFO - Sample 11 [Closed]:
+2026-02-03 21:55:23,163 - training - INFO -   GT: Question: is this an axial image? The answer is yes
+2026-02-03 21:55:23,163 - training - INFO -   Pred: [FULL] yes.
+2026-02-03 21:55:23,193 - training - INFO - Sample 12 [Open]:
+2026-02-03 21:55:23,194 - training - INFO -   GT: Question: what structures are visible in this image? The answer is skull cartilage and medulla
+2026-02-03 21:55:23,195 - training - INFO -   Pred: [FULL] "
+2026-02-03 21:55:23,317 - training - INFO - Sample 13 [Open]:
+2026-02-03 21:55:23,319 - training - INFO -   GT: Question: what is this lucency amid densities in the right lung? The answer is the right bronchus
+2026-02-03 21:55:23,321 - training - INFO -   Pred: [FULL] the same as in the case of the case.
+2026-02-03 21:55:23,541 - training - INFO - Sample 14 [Closed]:
+2026-02-03 21:55:23,542 - training - INFO -   GT: Question: is there evidence of any abnormalities of the lung parenchyma? The answer is no
+2026-02-03 21:55:23,543 - training - INFO -   Pred: [FULL] : "It is not possible to say that the lung parenchyma has been damaged by a drug.
+2026-02-03 21:55:23,649 - training - INFO - Sample 15 [Closed]:
+2026-02-03 21:55:23,650 - training - INFO -   GT: Question: are the temporal bones fractured? The answer is no
+2026-02-03 21:55:23,651 - training - INFO -   Pred: [FULL] the same as in the previous answer.
+2026-02-03 21:55:23,826 - training - INFO - Sample 16 [Closed]:
+2026-02-03 21:55:23,827 - training - INFO -   GT: Question: is there consolidation in the lungs? The answer is no
+2026-02-03 21:55:23,829 - training - INFO -   Pred: [FULL] not the same as in the title.
+2026-02-03 21:55:23,831 - training - INFO - ----------------------------------
+
+2026-02-03 21:55:30,397 - training - INFO - Val - Loss: 5.8659, Overall: 0.0000, Closed: 0.0000, Open: 0.0000
+2026-02-03 21:55:49,817 - training - INFO - 
+==================================================
+2026-02-03 21:55:49,880 - training - INFO - Epoch 2/50
+2026-02-03 21:55:49,881 - training - INFO - ==================================================

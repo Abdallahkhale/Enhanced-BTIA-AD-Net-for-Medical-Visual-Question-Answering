@@ -61,16 +61,16 @@ def evaluate(
         
         if use_fp16:
             with autocast():
-                outputs = model(
                     images=images,
                     question_ids=question_ids,
-                    question_mask=question_mask
+                    question_mask=question_mask,
+                    is_closed=is_closed
                 )
         else:
-            outputs = model(
                 images=images,
                 question_ids=question_ids,
-                question_mask=question_mask
+                question_mask=question_mask,
+                is_closed=is_closed
             )
         
         predictions = torch.argmax(outputs['logits'], dim=-1)
@@ -174,7 +174,16 @@ def main():
     model = create_model(config)
     
     # Build answer cache
+    # Build answer cache
     model.build_answer_cache(train_dataset.get_answer_list(), device)
+    
+    # Set indices for answer masking
+    if hasattr(model, 'set_answer_indices'):
+        yes_idx = train_dataset.answer_to_idx.get('yes')
+        no_idx = train_dataset.answer_to_idx.get('no')
+        if yes_idx is not None and no_idx is not None:
+            print(f"Setting masking indices: yes={yes_idx}, no={no_idx}")
+            model.set_answer_indices(yes_idx, no_idx)
     
     # Load checkpoint
     checkpoint = load_checkpoint(args.checkpoint, model)

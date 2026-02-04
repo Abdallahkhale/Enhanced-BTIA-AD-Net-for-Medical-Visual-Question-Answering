@@ -34,7 +34,9 @@ class MedVQADataset(Dataset):
         max_question_length: int = 64,
         tokenizer_name: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext",
         transform=None,
-        auto_download: bool = True
+        auto_download: bool = True,
+        oversample_factor: int = 1,
+        generative_mode: bool = False
     ):
         """
         Initialize dataset.
@@ -49,16 +51,23 @@ class MedVQADataset(Dataset):
             tokenizer_name: Tokenizer to use
             transform: Image transform (if None, uses BiomedCLIP default)
             auto_download: Auto-download datasets if not present
+            generative_mode: Enable generative training (tokenized answers)
         """
         self.data_dir = Path(data_dir)
         self.split = split
         self.use_slake = use_slake
         self.use_pathvqa = use_pathvqa
         self.image_size = image_size
+        self.image_size = image_size
         self.max_question_length = max_question_length
+        self.oversample_factor = oversample_factor
+        self.generative_mode = generative_mode
         
         # Initialize tokenizer
+        # For generative mode, set padding
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         
         # Initialize image transform
         if transform is None:
@@ -115,14 +124,19 @@ class MedVQADataset(Dataset):
                 data = json.load(f)
             
             for item in data:
-                self.samples.append({
-                    'image_path': str(vqa_rad_dir / item['image_path']),
-                    'question': item['question'],
-                    'answer': str(item['answer']).lower().strip(),
-                    'question_type': item.get('question_type', 'unknown'),
-                    'answer_type': item.get('answer_type', 'OPEN'),
-                    'source': 'vqa_rad'
-                })
+                # Oversample VQA-RAD if requested (to balance with PathVQA)
+                # Only apply to training set
+                count = self.oversample_factor if self.split == 'train' else 1
+                
+                for _ in range(count):
+                    self.samples.append({
+                        'image_path': str(vqa_rad_dir / item['image_path']),
+                        'question': item['question'],
+                        'answer': str(item['answer']).lower().strip(),
+                        'question_type': item.get('question_type', 'unknown'),
+                        'answer_type': item.get('answer_type', 'OPEN'),
+                        'source': 'vqa_rad'
+                    })
         else:
             print(f"Warning: VQA-RAD {self.split}.json not found at {json_path}")
             print("Please run 'python data/download.py' first")
@@ -139,11 +153,20 @@ class MedVQADataset(Dataset):
                 data = json.load(f)
             
             for item in data:
+                # Handle both 'image_path' and 'image' fields
+                img_field = item.get('image_path', item.get('image', ''))
+                # Images are stored in 'imgs' subdirectory
+                image_path = slake_dir / "imgs" / img_field
+                
+                # Skip if image doesn't exist
+                if not image_path.exists():
+                    continue
+                    
                 self.samples.append({
-                    'image_path': str(slake_dir / item['image_path']),
+                    'image_path': str(image_path),
                     'question': item['question'],
                     'answer': str(item['answer']).lower().strip(),
-                    'question_type': item.get('question_type', 'unknown'),
+                    'question_type': item.get('question_type', item.get('content_type', 'unknown')),
                     'answer_type': item.get('answer_type', 'OPEN'),
                     'source': 'slake'
                 })
@@ -207,8 +230,8 @@ class MedVQADataset(Dataset):
         
         for ans, idx in self.answer_to_idx.items():
             count = self._answer_counts.get(ans, 1)
-            # Inverse frequency with smoothing
-            weights[idx] = 1.0 / np.sqrt(count + 1)
+            # Strict Inverse frequency to heavily penalize frequent classes (yes/no)
+            weights[idx] = 1.0 / count
         
         # Normalize so weights sum to num_classes
         weights = weights * num_answers / weights.sum()
@@ -232,7 +255,86 @@ class MedVQADataset(Dataset):
             # Return a black image as fallback
             image = torch.zeros(3, self.image_size, self.image_size)
         
-        # Tokenize question
+        # Generative Mode Tokenization
+        if self.generative_mode:
+            questions = sample['question'] # Is this singular or batch?
+            # It's definitely singular in getitem.
+            
+            # Determine if this is a closed (yes/no) or open question
+            is_closed = sample.get('answer_type', 'OPEN').upper() in ['CLOSED', 'YES/NO'] or \
+                       sample['answer'].lower() in ['yes', 'no']
+            
+            # Use different prompts for open vs closed questions
+            # This teaches the model when to give yes/no vs descriptive answers
+            if is_closed:
+                # Closed-ended: expect yes/no answer
+                prompt = f"Question: {sample['question']} Answer yes or no:"
+            else:
+                # Open-ended: expect descriptive answer
+                # "Provide a detailed answer" triggers BioGPT's paper generation mode
+                # "Answer:" is more constrained and effective for VQA
+                prompt = f"Question: {sample['question']} Answer:"
+            
+            answer_text = f" {sample['answer']}"
+            
+            # 1. Tokenize Prompt
+            prompt_enc = self.tokenizer(
+                prompt,
+                truncation=True, 
+                max_length=self.max_question_length,
+                add_special_tokens=False, # We'll manage special tokens manually if needed
+                return_tensors='pt'
+            )
+            prompt_ids = prompt_enc['input_ids'].squeeze(0)
+            
+            # 2. Tokenize Answer + EOS
+            answer_enc = self.tokenizer(
+                answer_text + self.tokenizer.eos_token,
+                truncation=True,
+                max_length=32, # Max answer length
+                add_special_tokens=False,
+                return_tensors='pt'
+            )
+            answer_ids = answer_enc['input_ids'].squeeze(0)
+            
+            # 3. Concatenate
+            input_ids = torch.cat([prompt_ids, answer_ids], dim=0)
+            attention_mask = torch.ones_like(input_ids)
+            
+            # 4. Create Labels
+            # Mask prompt with -100
+            labels = input_ids.clone()
+            labels[:len(prompt_ids)] = -100
+            
+            # 5. Pad to max_length
+            max_len = self.max_question_length + 32
+            if len(input_ids) < max_len:
+                pad_len = max_len - len(input_ids)
+                pad_ids = torch.full((pad_len,), self.tokenizer.pad_token_id, dtype=torch.long)
+                input_ids = torch.cat([input_ids, pad_ids], dim=0)
+                attention_mask = torch.cat([attention_mask, torch.zeros(pad_len, dtype=torch.long)], dim=0)
+                labels = torch.cat([labels, torch.full((pad_len,), -100, dtype=torch.long)], dim=0)
+            else:
+                # Truncate if somehow too long (unlikely given chunks)
+                input_ids = input_ids[:max_len]
+                attention_mask = attention_mask[:max_len]
+                labels = labels[:max_len]
+            
+            # If 'answer_type' is closed, mark it
+            is_closed = sample.get('answer_type', 'OPEN').upper() in ['CLOSED', 'YES/NO'] or \
+                       sample['answer'].lower() in ['yes', 'no']
+            
+            return {
+                'images': image,
+                'input_ids': input_ids,
+                'attention_mask': attention_mask,
+                'labels': labels, # For CausalLM loss
+                'question': sample['question'],
+                'answer_text': sample['answer'],
+                'is_closed': torch.tensor(1 if is_closed else 0, dtype=torch.long)
+            }
+
+        # Discriminative Mode (Legacy)
         encoded = self.tokenizer(
             sample['question'],
             padding='max_length',
@@ -278,7 +380,9 @@ def create_dataloaders(
     use_slake: bool = True,
     use_pathvqa: bool = False,
     image_size: int = 224,
-    max_question_length: int = 64
+    max_question_length: int = 64,
+    generative_mode: bool = False,
+    tokenizer_name: str = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
 ) -> Tuple[DataLoader, DataLoader, MedVQADataset]:
     """
     Create train and test dataloaders.
@@ -291,6 +395,8 @@ def create_dataloaders(
         use_pathvqa: Whether to include PathVQA dataset (32K+ samples!)
         image_size: Target image size
         max_question_length: Maximum question token length
+        generative_mode: Enable generative mode
+        tokenizer_name: Tokenizer name
         
     Returns:
         train_loader, test_loader, train_dataset
@@ -302,7 +408,10 @@ def create_dataloaders(
         use_slake=use_slake,
         use_pathvqa=use_pathvqa,
         image_size=image_size,
-        max_question_length=max_question_length
+        max_question_length=max_question_length,
+        oversample_factor=12 if use_pathvqa else 1,
+        generative_mode=generative_mode,
+        tokenizer_name=tokenizer_name
     )
     
     test_dataset = MedVQADataset(
@@ -310,29 +419,31 @@ def create_dataloaders(
         split='test',
         use_slake=False,  # Test only on VQA-RAD
         image_size=image_size,
-        max_question_length=max_question_length
+        max_question_length=max_question_length,
+        generative_mode=generative_mode,
+        tokenizer_name=tokenizer_name
     )
     
-    # CRITICAL: Merge test vocabulary into training vocabulary
-    # This ensures all test answers can be predicted by the model
-    # Without this, open-ended accuracy will be ~0% due to OOV answers
-    all_answers = set(train_dataset.answer_to_idx.keys())
-    for answer in test_dataset.answer_to_idx.keys():
-        if answer not in all_answers:
-            all_answers.add(answer)
-    
-    # Rebuild vocabulary with all answers (sorted for consistency)
-    sorted_answers = ['<UNK>'] + sorted([a for a in all_answers if a != '<UNK>'])
-    unified_answer_to_idx = {ans: idx for idx, ans in enumerate(sorted_answers)}
-    unified_idx_to_answer = {idx: ans for ans, idx in unified_answer_to_idx.items()}
-    
-    # Apply unified vocabulary to both datasets
-    train_dataset.answer_to_idx = unified_answer_to_idx
-    train_dataset.idx_to_answer = unified_idx_to_answer
-    test_dataset.answer_to_idx = unified_answer_to_idx
-    test_dataset.idx_to_answer = unified_idx_to_answer
-    
-    print(f"Unified vocabulary size: {len(unified_answer_to_idx)}")
+    # CRITICAL: Merge test vocabulary into training vocabulary (Discriminative Only)
+    # Generative doesn't care about answer_to_idx, but good to keep consistency
+    if not generative_mode:
+        all_answers = set(train_dataset.answer_to_idx.keys())
+        for answer in test_dataset.answer_to_idx.keys():
+            if answer not in all_answers:
+                all_answers.add(answer)
+        
+        # Rebuild vocabulary with all answers (sorted for consistency)
+        sorted_answers = ['<UNK>'] + sorted([a for a in all_answers if a != '<UNK>'])
+        unified_answer_to_idx = {ans: idx for idx, ans in enumerate(sorted_answers)}
+        unified_idx_to_answer = {idx: ans for ans, idx in unified_answer_to_idx.items()}
+        
+        # Apply unified vocabulary to both datasets
+        train_dataset.answer_to_idx = unified_answer_to_idx
+        train_dataset.idx_to_answer = unified_idx_to_answer
+        test_dataset.answer_to_idx = unified_answer_to_idx
+        test_dataset.idx_to_answer = unified_idx_to_answer
+        
+        print(f"Unified vocabulary size: {len(unified_answer_to_idx)}")
     
     # Create collator
     collator = VQACollator()
@@ -367,18 +478,34 @@ class VQACollator:
     
     def __call__(self, batch: List[Dict]) -> Dict[str, torch.Tensor]:
         """Collate batch of samples."""
-        images = torch.stack([s['image'] for s in batch])
-        questions = [s['question'] for s in batch]
-        question_ids = torch.stack([s['question_ids'] for s in batch])
-        question_mask = torch.stack([s['question_mask'] for s in batch])
-        answer_idx = torch.stack([s['answer_idx'] for s in batch])
-        is_closed = torch.stack([s['is_closed'] for s in batch])
+        # Fix: access 'image' or 'images' consistently
+        # dataset.__getitem__ returns 'images' if we fixed it, or 'image'?
+        # Previous view showed 'images': image in generative mode block, but 'image': image in discrim mode.
+        # Let's check `__getitem__` return keys again. 
+        # Line 309 in Step 504: 'images': image
+        # Line 267 in Step 458: 'image': image (Discrim)
+        # So we handle both.
         
-        return {
+        images = torch.stack([s.get('images', s.get('image')) for s in batch])
+        questions = [s['question'] for s in batch]
+        
+        result = {
             'images': images,
-            'questions': questions,
-            'question_ids': question_ids,
-            'question_mask': question_mask,
-            'answer_idx': answer_idx,
-            'is_closed': is_closed
+            'questions': questions
         }
+        
+        if 'input_ids' in batch[0]:
+            # Generative
+            result['input_ids'] = torch.stack([s['input_ids'] for s in batch])
+            result['attention_mask'] = torch.stack([s['attention_mask'] for s in batch])
+            result['labels'] = torch.stack([s['labels'] for s in batch])
+        else:
+            # Discriminative
+            result['question_ids'] = torch.stack([s['question_ids'] for s in batch])
+            result['question_mask'] = torch.stack([s['question_mask'] for s in batch])
+            result['answer_idx'] = torch.stack([s['answer_idx'] for s in batch])
+            
+        # Common
+        result['is_closed'] = torch.stack([s['is_closed'] for s in batch])
+        
+        return result

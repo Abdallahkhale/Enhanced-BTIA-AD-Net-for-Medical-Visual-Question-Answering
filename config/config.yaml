@@ -7,23 +7,30 @@ model:
   text_encoder: "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
   
   # Architecture
-  hidden_dim: 768
-  num_heads: 8
-  num_attention_layers: 2
-  dropout: 0.3
-  top_k_answers: 5
+  type: "generative"
+  text_decoder: "microsoft/BioGPT"
+  freeze_vision: true  # Freeze vision encoder to save memory/time initially
+  freeze_text: false   # Train decoder
   
-  # Feature Fusion
-  fusion_method: "btia"  # bi-text-image attention
-  use_answer_distillation: true
+  # Old Fusion (Ignored for Generative)
+  fusion_method: "btia"
+  use_answer_distillation: false
+  use_embedding_matching: false
   
-  # Solution 3: Embedding Matching (better for open-ended questions)
-  use_embedding_matching: true  # Uses cosine similarity instead of classification
+  # Two-Stage Training (LLaVA approach - CRITICAL for generative models)
+  # Stage 1: Freeze LLM, train only projection layer (cross-modal alignment)
+  # Stage 2: Unfreeze LLM, train projection + LLM (fine-tuning)
+  pretraining_epochs: 10  # Number of epochs to train projection only (Stage 1) - longer alignment
+  
+  # LoRA Fine-tuning (prevents overfitting, 10x fewer params)
+  use_lora: true
+  lora_r: 16
+  lora_alpha: 32
 
 training:
   # Batch and Learning
   batch_size: 16
-  learning_rate: 2.0e-5
+  learning_rate: 1.0e-5  # Lower LR for better LLM fine-tuning
   weight_decay: 0.01
   epochs: 50
   warmup_ratio: 0.1
@@ -36,7 +43,7 @@ training:
   # Checkpointing
   save_every_epoch: true
   checkpoint_dir: "checkpoints"
-  resume_from: null
+  resume_from: null  # Start from scratch with new prompts
   
   # Early Stopping
   early_stopping_patience: 10
@@ -51,7 +58,7 @@ data:
   max_answer_length: 32
   
   # Dataset Augmentation
-  use_slake_augmentation: false  # SLAKE images not available on HuggingFace
+  use_slake_augmentation: false  # SLAKE images not downloaded
   use_pathvqa_augmentation: true  # Add 32K+ pathology samples!
   train_split: 0.8
   num_workers: 4
